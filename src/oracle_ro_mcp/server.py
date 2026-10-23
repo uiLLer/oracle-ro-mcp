@@ -78,18 +78,25 @@ def _texto(valor):
     return str(valor)
 
 
-def _destino(p: _perfis.Perfil, save_to: str) -> Path:
-    if not p.out_dir:
-        raise RuntimeError(f"Perfil '{p.nome}' sem out_dir: gravação em arquivo desativada.")
-    raiz = Path(p.out_dir).resolve()
+def _destino(p: _perfis.Perfil, save_to: str, out_dir: str | None) -> Path:
+    """Pasta = parâmetro `out_dir` da chamada, ou o `out_dir` do perfil como padrão.
+    Precisa ser caminho absoluto; `save_to` não pode sair dela."""
+    base = out_dir or p.out_dir
+    if not base:
+        raise RuntimeError("Informe out_dir (ou configure out_dir no perfil): gravação em arquivo desativada.")
+    if not Path(base).is_absolute():
+        raise RuntimeError("out_dir precisa ser um caminho absoluto.")
+    raiz = Path(base).resolve()
     destino = (raiz / save_to).resolve()
     if raiz != destino and raiz not in destino.parents:
         raise RuntimeError("save_to precisa ficar dentro de out_dir.")
     return destino
 
 
-def _gravar_csv(p: _perfis.Perfil, resultado: dict, save_to: str) -> str:
-    destino = _destino(p, save_to)
+def _gravar_csv(p: _perfis.Perfil, resultado: dict, save_to: str, out_dir: str | None) -> str:
+    if not save_to.lower().endswith(".csv"):
+        save_to += ".csv"
+    destino = _destino(p, save_to, out_dir)
     destino.parent.mkdir(parents=True, exist_ok=True)
     with open(destino, "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
@@ -123,14 +130,16 @@ def oracle_ping(profile: str | None = None) -> dict:
 
 
 @mcp.tool()
-def oracle_query(sql: str, profile: str | None = None, max_rows: int = 200, save_to: str | None = None) -> dict:
-    """Executa um SELECT/WITH somente leitura no perfil escolhido. `save_to` grava CSV no out_dir do perfil."""
+def oracle_query(sql: str, profile: str | None = None, max_rows: int = 200,
+                 save_to: str | None = None, out_dir: str | None = None) -> dict:
+    """Executa um SELECT/WITH somente leitura no perfil escolhido. `save_to` grava um CSV em `out_dir`
+    (caminho absoluto; se omitido, usa o out_dir do perfil)."""
     try:
         sql = validar_somente_leitura(sql)
         p = _perfil(profile)
         resultado = _executar(p, sql, max_rows=max_rows)
         if save_to:
-            resultado["saved_to"] = _gravar_csv(p, resultado, save_to)
+            resultado["saved_to"] = _gravar_csv(p, resultado, save_to, out_dir)
         return resultado
     except (SqlRecusado, _perfis.PerfilInvalido, oracledb.Error, RuntimeError) as e:
         return _erro(e)
@@ -188,10 +197,10 @@ def oracle_indexes(table_like: str, owner: str | None = None, profile: str | Non
 
 @mcp.tool()
 def oracle_source(name_like: str, type: str = "PROCEDURE", owner: str | None = None,
-                  profile: str | None = None, save_to: str | None = None) -> dict:
+                  profile: str | None = None, save_to: str | None = None, out_dir: str | None = None) -> dict:
     """Fonte PL/SQL de objetos (ALL_SOURCE) cujo nome case com `name_like` (% é curinga).
-    type: PROCEDURE, FUNCTION, PACKAGE, PACKAGE BODY, TRIGGER, TYPE, TYPE BODY. `save_to` grava um .sql
-    por objeto dentro de <out_dir do perfil>/<save_to>."""
+    type: PROCEDURE, FUNCTION, PACKAGE, PACKAGE BODY, TRIGGER, TYPE, TYPE BODY. Com `save_to` (subpasta,
+    use "." para a própria pasta) grava um .sql por objeto em `out_dir` (absoluto; padrão: out_dir do perfil)."""
     if not LIKE_PAT.match(name_like) or (owner and not IDENT.match(owner)):
         return {"error": "Nome inválido."}
     if type.upper() not in {"PROCEDURE", "FUNCTION", "PACKAGE", "PACKAGE BODY", "TRIGGER", "TYPE", "TYPE BODY"}:
@@ -212,7 +221,7 @@ def oracle_source(name_like: str, type: str = "PROCEDURE", owner: str | None = N
                  "objects": [{"owner": o, "name": n, "type": t, "lines": len(v)} for (o, n, t), v in objetos.items()],
                  "truncated": r["truncated"]}
         if save_to:
-            pasta = _destino(p, save_to)
+            pasta = _destino(p, save_to, out_dir)
             pasta.mkdir(parents=True, exist_ok=True)
             saida["saved_files"] = []
             for (o, n, t), v in objetos.items():

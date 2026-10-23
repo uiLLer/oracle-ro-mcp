@@ -9,11 +9,11 @@ Todas aceitam `profile` (opcional; sem ele vale o perfil `default`).
 |---|---|
 | `oracle_profiles()` | lista os perfis configurados (sem segredos) |
 | `oracle_ping(profile)` | testa o perfil com `SELECT 1 FROM dual` |
-| `oracle_query(sql, profile, max_rows, save_to)` | `SELECT`/`WITH`; opcionalmente grava CSV no `out_dir` do perfil |
+| `oracle_query(sql, profile, max_rows, save_to, out_dir)` | `SELECT`/`WITH`; com `save_to` grava um `.csv` em `out_dir` |
 | `oracle_describe(table, owner, profile)` | colunas de tabela/view |
 | `oracle_tables(name_like, owner, profile)` | tabelas e `NUM_ROWS` estimado |
 | `oracle_indexes(table_like, owner, profile)` | índices e colunas |
-| `oracle_source(name_like, type, owner, profile, save_to)` | fonte de procedure/function/package/trigger (`ALL_SOURCE`); `save_to` grava um `.sql` por objeto |
+| `oracle_source(name_like, type, owner, profile, save_to, out_dir)` | fonte de procedure/function/package/trigger (`ALL_SOURCE`); com `save_to` grava um `.sql` por objeto em `out_dir` |
 
 ## Segurança (três camadas)
 1. **Validador de SQL** (`guard.py`): só `SELECT`/`WITH`, sem `;` múltiplo, `DML/DDL`, `FOR UPDATE`, `INTO`, `DBMS_*`/`UTL_*`, database link ou PL/SQL embutido.
@@ -48,11 +48,13 @@ password_env = "ORACLE_PWD_PRD"
 max_rows     = 200                      # padrão 500
 timeout_s    = 30                       # padrão 60
 pool_max     = 2                        # padrão 2
-out_dir      = "C:/saida/prd"           # sem isso, save_to fica desativado
+out_dir      = "C:/saida/prd"           # opcional: pasta padrão; a chamada pode passar out_dir
 ```
+**Pasta de saída:** `save_to` grava em `out_dir`, que é parâmetro da chamada; o `out_dir` do perfil é só o padrão (opcional). Regras: caminho **absoluto**, `save_to` não sai da pasta, extensão fixa (`.csv` / `.sql`). Sem `out_dir` na chamada nem no perfil, gravar fica desativado.
+
 Um `password` literal no arquivo é **recusado**. As senhas ficam em variáveis de ambiente (`ORACLE_PWD_DEV`, ...).
 
-**Sem arquivo**, vale um perfil único `default` montado de `ORACLE_DSN`, `ORACLE_USER`, `ORACLE_PASSWORD` (e, opcionalmente, `ORACLE_MAX_ROWS`, `ORACLE_TIMEOUT_S`, `ORACLE_OUT_DIR`). `TNS_ADMIN` é necessário se o DSN for alias do `tnsnames.ora`.
+**Sem arquivo**, vale um perfil único `default` montado de `ORACLE_DSN`, `ORACLE_USER`, `ORACLE_PASSWORD` (e, opcionalmente, `ORACLE_MAX_ROWS`, `ORACLE_TIMEOUT_S`, `ORACLE_OUT_DIR` como pasta padrão). `TNS_ADMIN` é necessário se o DSN for alias do `tnsnames.ora`.
 
 ### Claude Code
 Os perfis vêm do TOML, então o `.mcp.json` não precisa de segredo nenhum. Pode apontar outro arquivo com `"env": {"ORACLE_MCP_CONFIG": "..."}`:
