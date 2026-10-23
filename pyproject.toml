@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "oracle-ro-mcp"
+version = "0.1.0"
+description = "Servidor MCP somente leitura para Oracle (consulta, metadados, fonte de PL/SQL, índices)."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["mcp>=1.2", "oracledb>=2.0"]
+
+[project.scripts]
+oracle-ro-mcp = "oracle_ro_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/oracle_ro_mcp"]
